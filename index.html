@@ -1,0 +1,1804 @@
+```html
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>스탠딩의 공정한 분배</title>
+
+  <!-- TensorFlow.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+
+  <!-- Teachable Machine Image -->
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, "Noto Sans KR", sans-serif;
+      background: #f7f8fa;
+      color: #202124;
+      line-height: 1.6;
+    }
+
+    .container {
+      width: min(900px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 40px 0 60px;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+      font-size: 32px;
+    }
+
+    h2 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      font-size: 22px;
+    }
+
+    h3 {
+      margin-bottom: 8px;
+    }
+
+    p {
+      margin: 6px 0;
+    }
+
+    .subtitle {
+      color: #5f6368;
+      margin-bottom: 28px;
+    }
+
+    .section {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .model-box {
+      border: 2px solid #e8eaed;
+      border-radius: 14px;
+      padding: 20px;
+      background: #fafafa;
+    }
+
+    .status {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #f1f3f4;
+      color: #3c4043;
+      font-size: 14px;
+    }
+
+    .error {
+      background: #fce8e6;
+      color: #c5221f;
+    }
+
+    .success {
+      background: #e6f4ea;
+      color: #137333;
+    }
+
+    .input-buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 18px 0;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      background: #1a73e8;
+      color: white;
+      transition: opacity 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .secondary-button {
+      background: #5f6368;
+    }
+
+    .danger-button {
+      background: #d93025;
+    }
+
+    .input-panel {
+      display: none;
+    }
+
+    .input-panel.active {
+      display: block;
+    }
+
+    .camera-wrapper,
+    .upload-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #webcam-container,
+    #upload-preview-container {
+      width: min(400px, 100%);
+      aspect-ratio: 1 / 1;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #f1f3f4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    #webcam-container canvas,
+    #webcam-container video,
+    #upload-preview {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    #upload-preview {
+      display: none;
+    }
+
+    .placeholder {
+      color: #80868b;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .file-input {
+      width: 100%;
+      max-width: 400px;
+      padding: 12px;
+      border: 1px solid #dadce0;
+      border-radius: 10px;
+      background: white;
+      margin-bottom: 10px;
+    }
+
+    .prediction-area {
+      width: 100%;
+      margin-top: 20px;
+    }
+
+    .prediction-main {
+      border-radius: 12px;
+      padding: 16px;
+      background: #f8f9fa;
+      margin-bottom: 14px;
+    }
+
+    .prediction-main strong {
+      font-size: 20px;
+    }
+
+    .prediction-note {
+      margin-top: 6px;
+      font-size: 13px;
+      color: #5f6368;
+    }
+
+    .prediction-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .prediction-row {
+      width: 100%;
+    }
+
+    .prediction-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+
+    .prediction-class {
+      font-weight: 600;
+    }
+
+    .prediction-percent {
+      font-variant-numeric: tabular-nums;
+      color: #5f6368;
+    }
+
+    .bar-background {
+      width: 100%;
+      height: 14px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: #e8eaed;
+    }
+
+    .bar {
+      width: 0%;
+      height: 100%;
+      border-radius: 999px;
+      background: #8ab4f8;
+      transition: width 0.2s ease;
+    }
+
+    .prediction-row.highest .bar {
+      background: #1a73e8;
+    }
+
+    .prediction-row.highest .prediction-class,
+    .prediction-row.highest .prediction-percent {
+      color: #1a73e8;
+    }
+
+    .stopwatch-box {
+      text-align: center;
+      padding: 20px;
+      border-radius: 14px;
+      background: #f8f9fa;
+    }
+
+    #stopwatch {
+      font-size: 48px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      margin: 4px 0;
+    }
+
+    #stopwatch.warning {
+      color: #d93025;
+    }
+
+    #warning-message {
+      display: none;
+      margin-top: 10px;
+      padding: 12px;
+      background: #fce8e6;
+      color: #c5221f;
+      border-radius: 10px;
+      font-weight: 700;
+    }
+
+    .cat {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 120px;
+      height: 120px;
+      display: none;
+      z-index: 999;
+      pointer-events: none;
+    }
+
+    .cat-body {
+      position: absolute;
+      left: 25px;
+      bottom: 10px;
+      width: 70px;
+      height: 55px;
+      border: 3px solid #444;
+      background: white;
+      border-radius: 50% 50% 45% 45%;
+    }
+
+    .cat-head {
+      position: absolute;
+      left: 32px;
+      top: 20px;
+      width: 55px;
+      height: 50px;
+      border: 3px solid #444;
+      background: white;
+      border-radius: 50%;
+      z-index: 2;
+    }
+
+    .cat-ear-left,
+    .cat-ear-right {
+      position: absolute;
+      top: 12px;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-top: 3px solid #444;
+      border-left: 3px solid #444;
+      transform: rotate(45deg);
+    }
+
+    .cat-ear-left {
+      left: 34px;
+    }
+
+    .cat-ear-right {
+      right: 18px;
+    }
+
+    .cat-eye-left,
+    .cat-eye-right {
+      position: absolute;
+      top: 39px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #333;
+      z-index: 3;
+    }
+
+    .cat-eye-left {
+      left: 46px;
+    }
+
+    .cat-eye-right {
+      left: 66px;
+    }
+
+    .cat-nose {
+      position: absolute;
+      top: 49px;
+      left: 57px;
+      width: 8px;
+      height: 6px;
+      border-radius: 50%;
+      background: #777;
+      z-index: 3;
+    }
+
+    .speech-bubble {
+      position: absolute;
+      left: 0;
+      top: 0;
+      min-width: 170px;
+      padding: 8px 12px;
+      background: white;
+      border: 2px solid #444;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.4;
+      text-align: center;
+    }
+
+    .team {
+      color: #5f6368;
+      font-size: 14px;
+    }
+
+    .small {
+      font-size: 13px;
+      color: #5f6368;
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        width: min(100% - 20px, 900px);
+        padding-top: 24px;
+      }
+
+      .section {
+        padding: 18px;
+      }
+
+      h1 {
+        font-size: 27px;
+      }
+
+      #stopwatch {
+        font-size: 40px;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+
+    <h1>스탠딩의 공정한 분배</h1>
+    <p class="subtitle">
+      스탠딩 책상을 한 사람이 오래 사용하는 상황을 확인하기 위한 이미지 분류 웹페이지
+    </p>
+
+    <!-- 문제와 사용자 -->
+    <section class="section">
+      <h2>문제와 사용자</h2>
+      <p>
+        야간자율학습 시간에 여러 학생이 함께 사용하는 스탠딩 책상에서
+        한 사람이 너무 오랫동안 사용하는 상황을 확인하기 어려운 문제가 있습니다.
+      </p>
+      <p>
+        이 웹페이지는 카메라 영상을 분석하여 스탠딩 책상에 사람이 있는지 확인하고,
+        일정 시간 이상 계속 사용하면 알림을 제공합니다.
+      </p>
+      <p class="small">
+        주요 사용자: 야간자율학습 감독 선생님, 스탠딩 책상을 사용하고 싶은 학생
+      </p>
+    </section>
+
+    <!-- 모델 -->
+    <section class="section">
+      <h2>티처블 머신 이미지 분류</h2>
+
+      <div class="model-box">
+        <p>
+          <strong>모델의 역할:</strong>
+          스탠딩 책상 주변의 이미지를 보고 학습된 클래스 중 하나를 선택합니다.
+        </p>
+
+        <div id="model-status" class="status">
+          모델을 불러오는 중입니다...
+        </div>
+
+        <div class="input-buttons">
+          <button id="camera-mode-button" type="button" disabled>
+            카메라 사용
+          </button>
+
+          <button id="upload-mode-button" type="button" disabled>
+            사진 업로드
+          </button>
+        </div>
+
+        <!-- 카메라 -->
+        <div id="camera-panel" class="input-panel active">
+          <div class="camera-wrapper">
+
+            <div id="webcam-container">
+              <div id="camera-placeholder" class="placeholder">
+                카메라 시작 버튼을 눌러 주세요.
+              </div>
+            </div>
+
+            <div class="input-buttons">
+              <button id="start-camera-button" type="button" disabled>
+                카메라 시작
+              </button>
+
+              <button
+                id="stop-camera-button"
+                type="button"
+                class="secondary-button"
+                disabled
+              >
+                카메라 중지
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- 업로드 -->
+        <div id="upload-panel" class="input-panel">
+
+          <div class="upload-wrapper">
+
+            <div id="upload-preview-container">
+              <div id="upload-placeholder" class="placeholder">
+                분석할 사진을 선택해 주세요.
+              </div>
+
+              <img
+                id="upload-preview"
+                alt="업로드한 이미지 미리보기"
+              />
+            </div>
+
+            <input
+              id="image-input"
+              class="file-input"
+              type="file"
+              accept="image/*"
+              disabled
+            />
+
+            <button
+              id="clear-image-button"
+              type="button"
+              class="secondary-button"
+              disabled
+            >
+              사진 지우기
+            </button>
+
+          </div>
+        </div>
+
+        <!-- 공통 결과 영역 -->
+        <div id="prediction-area" class="prediction-area">
+
+          <div id="prediction-main" class="prediction-main">
+            아직 분류 결과가 없습니다.
+          </div>
+
+          <div id="prediction-list" class="prediction-list">
+            <!-- 클래스별 확률이 JS로 생성됩니다. -->
+          </div>
+
+        </div>
+
+        <div id="prediction-status" class="status">
+          모델이 준비되면 카메라 또는 사진 업로드를 이용할 수 있습니다.
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 스톱워치 -->
+    <section class="section">
+      <h2>사용 시간 확인</h2>
+
+      <div class="stopwatch-box">
+        <p class="small">
+          카메라 측정 중 <strong>사람 있음</strong> 클래스가 가장 높은 결과일 때만 측정합니다.
+        </p>
+
+        <div id="stopwatch">0:00</div>
+
+        <div id="warning-message">
+          스탠딩 책상을 혼자 너무 오래 사용하지 말아 주세요!
+        </div>
+      </div>
+    </section>
+
+    <!-- 모델이 구분하는 클래스 -->
+    <section class="section">
+      <h2>모델이 구분하는 클래스</h2>
+
+      <p>
+        아래 클래스 이름은 티처블 머신에서 불러온 모델의 실제 메타데이터와
+        예측 결과를 기준으로 표시합니다.
+      </p>
+
+      <div id="class-description" class="small">
+        모델을 불러오는 중입니다...
+      </div>
+    </section>
+
+    <!-- 한계 -->
+    <section class="section">
+      <h2>한계와 사람의 확인</h2>
+
+      <p>
+        현재 모델은 한 사람이 촬영한 학습 데이터를 중심으로 만들어졌기 때문에
+        다른 사람이나 학습 당시와 다른 환경에서는 잘못 분류할 가능성이 있습니다.
+      </p>
+
+      <p>
+        따라서 모델의 결과만으로 실제 사용 여부를 확정하지 않고,
+        필요할 경우 감독 선생님이나 사용자가 직접 확인해야 합니다.
+      </p>
+
+      <p class="team">
+        팀: 희재<br />
+        20711 손희서 · 20712 신재영
+      </p>
+    </section>
+
+  </main>
+
+  <!-- 30분 초과 경고 고양이 -->
+  <div id="cat" class="cat">
+    <div class="speech-bubble">
+      스탠딩 책상을 혼자<br />
+      너무 오래 사용하지 말아 주세요!
+    </div>
+
+    <div class="cat-head"></div>
+    <div class="cat-ear-left"></div>
+    <div class="cat-ear-right"></div>
+    <div class="cat-eye-left"></div>
+    <div class="cat-eye-right"></div>
+    <div class="cat-nose"></div>
+    <div class="cat-body"></div>
+  </div>
+
+  <script>
+    /*
+      티처블 머신 모델 주소
+      model.json과 metadata.json은 이 주소 뒤에서 자동으로 불러옵니다.
+    */
+    const MODEL_URL =
+      "https://teachablemachine.withgoogle.com/models/m2GJzIaen/";
+
+    const modelURL = MODEL_URL + "model.json";
+    const metadataURL = MODEL_URL + "metadata.json";
+
+    let model = null;
+    let webcam = null;
+
+    let classLabels = [];
+
+    let predictionRows = [];
+
+    let cameraAnimationId = null;
+    let isCameraRunning = false;
+    let isPredicting = false;
+
+    let uploadedObjectURL = null;
+
+    /*
+      스톱워치 상태
+    */
+    const STOPWATCH_LIMIT = 30 * 60 * 1000;
+
+    let stopwatchStartTime = null;
+    let stopwatchInterval = null;
+
+    /*
+      고양이 이동 상태
+    */
+    let catAnimationId = null;
+    let catX = 100;
+    let catY = 100;
+    let catVX = 1.2;
+    let catVY = 1.0;
+
+    /*
+      HTML 요소
+    */
+    const modelStatus =
+      document.getElementById("model-status");
+
+    const predictionStatus =
+      document.getElementById("prediction-status");
+
+    const predictionMain =
+      document.getElementById("prediction-main");
+
+    const predictionList =
+      document.getElementById("prediction-list");
+
+    const classDescription =
+      document.getElementById("class-description");
+
+    const cameraModeButton =
+      document.getElementById("camera-mode-button");
+
+    const uploadModeButton =
+      document.getElementById("upload-mode-button");
+
+    const cameraPanel =
+      document.getElementById("camera-panel");
+
+    const uploadPanel =
+      document.getElementById("upload-panel");
+
+    const startCameraButton =
+      document.getElementById("start-camera-button");
+
+    const stopCameraButton =
+      document.getElementById("stop-camera-button");
+
+    const webcamContainer =
+      document.getElementById("webcam-container");
+
+    const cameraPlaceholder =
+      document.getElementById("camera-placeholder");
+
+    const imageInput =
+      document.getElementById("image-input");
+
+    const uploadPreview =
+      document.getElementById("upload-preview");
+
+    const uploadPlaceholder =
+      document.getElementById("upload-placeholder");
+
+    const clearImageButton =
+      document.getElementById("clear-image-button");
+
+    const stopwatchElement =
+      document.getElementById("stopwatch");
+
+    const warningMessage =
+      document.getElementById("warning-message");
+
+    const cat =
+      document.getElementById("cat");
+
+    /*
+      페이지가 열리면 모델만 먼저 불러옵니다.
+      이때 카메라 권한은 요청하지 않습니다.
+    */
+    window.addEventListener("DOMContentLoaded", loadModel);
+
+    async function loadModel() {
+      try {
+        modelStatus.textContent =
+          "티처블 머신 모델을 불러오는 중입니다...";
+
+        modelStatus.className = "status";
+
+        model = await tmImage.load(
+          modelURL,
+          metadataURL
+        );
+
+        /*
+          실제 모델의 클래스 이름을 가져옵니다.
+        */
+        classLabels = model.getClassLabels();
+
+        if (!classLabels || classLabels.length === 0) {
+          throw new Error("클래스 정보를 불러오지 못했습니다.");
+        }
+
+        createPredictionRows();
+
+        showClassInformation();
+
+        modelStatus.textContent =
+          "모델을 성공적으로 불러왔습니다.";
+
+        modelStatus.className =
+          "status success";
+
+        predictionStatus.textContent =
+          "카메라 또는 사진 업로드를 선택해 주세요.";
+
+        cameraModeButton.disabled = false;
+        uploadModeButton.disabled = false;
+        startCameraButton.disabled = false;
+        imageInput.disabled = false;
+
+      } catch (error) {
+        console.error(error);
+
+        modelStatus.textContent =
+          "모델을 불러오지 못했습니다. 모델 공유 주소와 인터넷 연결을 확인해 주세요.";
+
+        modelStatus.className =
+          "status error";
+
+        predictionStatus.textContent =
+          "모델 로딩에 실패했습니다.";
+
+        predictionStatus.className =
+          "status error";
+      }
+    }
+
+    /*
+      클래스 이름을 실제 모델의 이름을 기준으로 표시합니다.
+
+      모델이 이미
+      "사람 있음", "사람 없음"
+      같은 이름을 가지고 있다면 그대로 사용합니다.
+
+      만약 "Class 1", "Class 2"처럼 일반적인 이름이라면
+      사용자가 정한 기존 순서를 보조적으로 적용합니다.
+    */
+    function getDisplayClassName(index, originalName) {
+      const name =
+        String(originalName || "").trim();
+
+      const normalized =
+        name.toLowerCase().replace(/\s/g, "");
+
+      const genericNames = [
+        "class1",
+        "class2",
+        "class01",
+        "class02",
+        "클래스1",
+        "클래스2"
+      ];
+
+      /*
+        실제 사람이름이 들어 있는 경우
+        모델 이름을 그대로 사용합니다.
+      */
+      if (
+        normalized.includes("사람있음") ||
+        normalized.includes("사람없음")
+      ) {
+        return name;
+      }
+
+      /*
+        일반적인 Class 1 / Class 2일 때만
+        기존 약속을 적용합니다.
+      */
+      if (genericNames.includes(normalized)) {
+        if (index === 0) {
+          return "사람 없음";
+        }
+
+        if (index === 1) {
+          return "사람 있음";
+        }
+      }
+
+      return name;
+    }
+
+    /*
+      현재 모델의 실제 클래스 정보를 화면에 보여줍니다.
+    */
+    function showClassInformation() {
+      const text =
+        classLabels
+          .map((label, index) => {
+            const displayName =
+              getDisplayClassName(index, label);
+
+            return `${index + 1}. ${displayName}`;
+          })
+          .join(" / ");
+
+      classDescription.textContent =
+        `현재 모델 클래스: ${text}`;
+    }
+
+    /*
+      결과 행을 처음 한 번만 만들어 둡니다.
+      예측할 때마다 새로 만들지 않기 때문에
+      화면이 깜빡이지 않고 안정적으로 유지됩니다.
+    */
+    function createPredictionRows() {
+      predictionList.innerHTML = "";
+
+      predictionRows = [];
+
+      classLabels.forEach((label, index) => {
+        const row =
+          document.createElement("div");
+
+        row.className =
+          "prediction-row";
+
+        const header =
+          document.createElement("div");
+
+        header.className =
+          "prediction-header";
+
+        const className =
+          document.createElement("div");
+
+        className.className =
+          "prediction-class";
+
+        className.textContent =
+          getDisplayClassName(index, label);
+
+        const percent =
+          document.createElement("div");
+
+        percent.className =
+          "prediction-percent";
+
+        percent.textContent =
+          "0.0%";
+
+        header.appendChild(className);
+        header.appendChild(percent);
+
+        const background =
+          document.createElement("div");
+
+        background.className =
+          "bar-background";
+
+        const bar =
+          document.createElement("div");
+
+        bar.className =
+          "bar";
+
+        background.appendChild(bar);
+
+        row.appendChild(header);
+        row.appendChild(background);
+
+        predictionList.appendChild(row);
+
+        predictionRows.push({
+          row,
+          percent,
+          bar,
+          originalName: label,
+          displayName: getDisplayClassName(
+            index,
+            label
+          )
+        });
+      });
+    }
+
+    /*
+      "사람 있음" 클래스를 찾습니다.
+
+      실제 모델의 클래스 이름에
+      "사람 있음"이 들어 있다면 그 클래스를 찾아 사용합니다.
+
+      모델의 이름이 Class 1 / Class 2인 경우에는
+      두 번째 클래스를 사용합니다.
+    */
+    function findPresentClassIndex() {
+      const directIndex =
+        classLabels.findIndex(label => {
+          const normalized =
+            String(label)
+              .toLowerCase()
+              .replace(/\s/g, "");
+
+          return (
+            normalized.includes("사람있음") ||
+            normalized.includes("person") ||
+            normalized.includes("present")
+          );
+        });
+
+      if (directIndex !== -1) {
+        return directIndex;
+      }
+
+      /*
+        모델 클래스명이 일반적인 경우의 보조 처리
+      */
+      if (classLabels.length >= 2) {
+        const first =
+          String(classLabels[0]).toLowerCase();
+
+        const second =
+          String(classLabels[1]).toLowerCase();
+
+        const isGeneric =
+          (
+            first.includes("class") ||
+            second.includes("class") ||
+            first.includes("클래스") ||
+            second.includes("클래스")
+          );
+
+        if (isGeneric) {
+          return 1;
+        }
+      }
+
+      return -1;
+    }
+
+    /*
+      결과 배열을 하나의 함수에서 처리합니다.
+      카메라와 업로드 모두 이 함수를 사용합니다.
+    */
+    function displayPrediction(prediction) {
+      if (
+        !prediction ||
+        !Array.isArray(prediction) ||
+        prediction.length === 0
+      ) {
+        throw new Error(
+          "예측 결과를 읽을 수 없습니다."
+        );
+      }
+
+      let highestIndex = 0;
+      let highestProbability = -Infinity;
+
+      /*
+        모든 클래스 확률을 화면에 표시합니다.
+      */
+      prediction.forEach((result, index) => {
+        const probability =
+          Number(result.probability);
+
+        if (!Number.isFinite(probability)) {
+          return;
+        }
+
+        if (probability > highestProbability) {
+          highestProbability =
+            probability;
+
+          highestIndex =
+            index;
+        }
+
+        const row =
+          predictionRows[index];
+
+        if (!row) {
+          return;
+        }
+
+        const percent =
+          probability * 100;
+
+        row.percent.textContent =
+          `${percent.toFixed(1)}%`;
+
+        row.bar.style.width =
+          `${Math.max(0, Math.min(100, percent))}%`;
+
+        row.row.classList.remove(
+          "highest"
+        );
+      });
+
+      /*
+        실제 가장 높은 확률의 클래스를 강조합니다.
+      */
+      if (predictionRows[highestIndex]) {
+        predictionRows[
+          highestIndex
+        ].row.classList.add("highest");
+      }
+
+      /*
+        화면의 주 결과도 같은 prediction 배열에서 가져옵니다.
+      */
+      const highestResult =
+        prediction[highestIndex];
+
+      const displayName =
+        getDisplayClassName(
+          highestIndex,
+          highestResult.className
+        );
+
+      const highestPercent =
+        Number(
+          highestResult.probability
+        ) * 100;
+
+      predictionMain.innerHTML = `
+        <strong>${escapeHtml(displayName)}</strong>
+        <div class="prediction-note">
+          가장 높은 확률: ${highestPercent.toFixed(1)}%
+        </div>
+      `;
+
+      predictionStatus.textContent =
+        "현재 이미지를 티처블 머신 모델로 분류했습니다.";
+
+      predictionStatus.className =
+        "status success";
+
+      return {
+        highestIndex,
+        highestProbability,
+        highestName: displayName
+      };
+    }
+
+    /*
+      HTML에 클래스 이름을 넣을 때 안전하게 처리합니다.
+    */
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    /*
+      카메라 측정 모드
+    */
+    cameraModeButton.addEventListener(
+      "click",
+      () => {
+        stopCamera();
+
+        clearUploadPreview();
+
+        cameraPanel.classList.add("active");
+        uploadPanel.classList.remove("active");
+
+        predictionStatus.textContent =
+          "카메라를 시작할 수 있습니다.";
+
+        predictionStatus.className =
+          "status";
+      }
+    );
+
+    /*
+      업로드 모드
+    */
+    uploadModeButton.addEventListener(
+      "click",
+      () => {
+        stopCamera();
+
+        cameraPanel.classList.remove("active");
+        uploadPanel.classList.add("active");
+
+        predictionStatus.textContent =
+          "분석할 사진을 선택해 주세요.";
+
+        predictionStatus.className =
+          "status";
+      }
+    );
+
+    /*
+      카메라 시작
+    */
+    startCameraButton.addEventListener(
+      "click",
+      startCamera
+    );
+
+    async function startCamera() {
+      if (!model || isCameraRunning) {
+        return;
+      }
+
+      try {
+        stopCamera();
+
+        clearUploadPreview();
+
+        cameraPlaceholder.style.display =
+          "none";
+
+        predictionStatus.textContent =
+          "카메라 권한을 요청하고 카메라를 준비하는 중입니다...";
+
+        predictionStatus.className =
+          "status";
+
+        /*
+          Teachable Machine 공식 Webcam 클래스 사용
+        */
+        webcam =
+          new tmImage.Webcam(
+            400,
+            400,
+            true
+          );
+
+        await webcam.setup();
+
+        /*
+          iOS에서는 video 요소를 DOM에 넣어야
+          웹캠 영상이 안정적으로 동작하는 경우가 있습니다.
+        */
+        const isIOS =
+          /iPhone|iPad|iPod/i.test(
+            navigator.userAgent
+          );
+
+        if (isIOS) {
+          webcamContainer.innerHTML = "";
+
+          webcamContainer.appendChild(
+            webcam.webcam
+          );
+
+          webcam.webcam.setAttribute(
+            "playsinline",
+            "true"
+          );
+
+          webcam.webcam.muted = true;
+
+        } else {
+          webcamContainer.innerHTML = "";
+
+          webcamContainer.appendChild(
+            webcam.canvas
+          );
+        }
+
+        await webcam.play();
+
+        isCameraRunning = true;
+
+        startCameraButton.disabled =
+          true;
+
+        stopCameraButton.disabled =
+          false;
+
+        predictionStatus.textContent =
+          "카메라 측정을 시작했습니다.";
+
+        predictionStatus.className =
+          "status success";
+
+        cameraLoop();
+
+      } catch (error) {
+        console.error(error);
+
+        isCameraRunning = false;
+
+        startCameraButton.disabled =
+          false;
+
+        stopCameraButton.disabled =
+          true;
+
+        webcam = null;
+
+        cameraPlaceholder.style.display =
+          "block";
+
+        cameraPlaceholder.textContent =
+          "카메라를 시작할 수 없습니다.";
+
+        predictionStatus.textContent =
+          "카메라를 사용할 수 없습니다. 카메라 권한을 허용했는지 확인한 뒤 다시 시도해 주세요.";
+
+        predictionStatus.className =
+          "status error";
+      }
+    }
+
+    /*
+      카메라 반복 측정
+    */
+    async function cameraLoop() {
+      if (!isCameraRunning || !webcam) {
+        return;
+      }
+
+      webcam.update();
+
+      /*
+        이전 예측이 아직 끝나지 않았다면
+        중복 예측을 하지 않습니다.
+      */
+      if (!isPredicting) {
+        isPredicting = true;
+
+        try {
+          const isIOS =
+            /iPhone|iPad|iPod/i.test(
+              navigator.userAgent
+            );
+
+          const input =
+            isIOS
+              ? webcam.webcam
+              : webcam.canvas;
+
+          /*
+            실제 티처블 머신 모델에
+            현재 프레임을 그대로 전달합니다.
+          */
+          const prediction =
+            await model.predict(input);
+
+          const result =
+            displayPrediction(
+              prediction
+            );
+
+          updateStopwatchFromPrediction(
+            prediction,
+            result
+          );
+
+        } catch (error) {
+          console.error(error);
+
+          predictionStatus.textContent =
+            "카메라 이미지를 분석하지 못했습니다. 카메라를 다시 시작해 주세요.";
+
+          predictionStatus.className =
+            "status error";
+
+        } finally {
+          isPredicting = false;
+        }
+      }
+
+      if (isCameraRunning) {
+        cameraAnimationId =
+          requestAnimationFrame(
+            cameraLoop
+          );
+      }
+    }
+
+    /*
+      카메라 중지
+    */
+    function stopCamera() {
+      isCameraRunning = false;
+      isPredicting = false;
+
+      if (cameraAnimationId !== null) {
+        cancelAnimationFrame(
+          cameraAnimationId
+        );
+
+        cameraAnimationId = null;
+      }
+
+      if (webcam) {
+        try {
+          webcam.pause();
+        } catch (error) {
+          console.warn(error);
+        }
+
+        try {
+          webcam.stop();
+        } catch (error) {
+          console.warn(error);
+        }
+
+        webcam = null;
+      }
+
+      startCameraButton.disabled =
+        !model;
+
+      stopCameraButton.disabled =
+        true;
+
+      webcamContainer.innerHTML = `
+        <div id="camera-placeholder" class="placeholder">
+          카메라 시작 버튼을 눌러 주세요.
+        </div>
+      `;
+
+      resetStopwatch();
+    }
+
+    /*
+      업로드한 이미지 처리
+    */
+    imageInput.addEventListener(
+      "change",
+      handleImageUpload
+    );
+
+    async function handleImageUpload(event) {
+      stopCamera();
+
+      const file =
+        event.target.files &&
+        event.target.files[0];
+
+      if (!file) {
+        return;
+      }
+
+      if (
+        !file.type ||
+        !file.type.startsWith("image/")
+      ) {
+        predictionStatus.textContent =
+          "이미지 파일만 선택할 수 있습니다. JPG, PNG 등의 이미지를 다시 선택해 주세요.";
+
+        predictionStatus.className =
+          "status error";
+
+        imageInput.value = "";
+
+        return;
+      }
+
+      try {
+        revokeUploadedObjectURL();
+
+        uploadedObjectURL =
+          URL.createObjectURL(file);
+
+        uploadPlaceholder.style.display =
+          "none";
+
+        uploadPreview.src =
+          uploadedObjectURL;
+
+        uploadPreview.style.display =
+          "block";
+
+        clearImageButton.disabled =
+          false;
+
+        predictionStatus.textContent =
+          "사진을 불러오는 중입니다...";
+
+        predictionStatus.className =
+          "status";
+
+        /*
+          이미지가 완전히 로드된 뒤 예측합니다.
+        */
+        uploadPreview.onload =
+          async () => {
+            try {
+              if (!model) {
+                throw new Error(
+                  "모델이 준비되지 않았습니다."
+                );
+              }
+
+              predictionStatus.textContent =
+                "사진을 분석하는 중입니다...";
+
+              const prediction =
+                await model.predict(
+                  uploadPreview
+                );
+
+              displayPrediction(
+                prediction
+              );
+
+            } catch (error) {
+              console.error(error);
+
+              predictionStatus.textContent =
+                "사진을 읽거나 분석하지 못했습니다. 다른 이미지를 선택해 주세요.";
+
+              predictionStatus.className =
+                "status error";
+            }
+          };
+
+        uploadPreview.onerror =
+          () => {
+            predictionStatus.textContent =
+              "이미지를 읽을 수 없습니다. 다른 사진 파일을 선택해 주세요.";
+
+            predictionStatus.className =
+              "status error";
+          };
+
+      } catch (error) {
+        console.error(error);
+
+        predictionStatus.textContent =
+          "사진을 처리하지 못했습니다. 다른 이미지를 선택해 주세요.";
+
+        predictionStatus.className =
+          "status error";
+      }
+    }
+
+    /*
+      업로드 이미지 제거
+    */
+    clearImageButton.addEventListener(
+      "click",
+      clearUploadPreview
+    );
+
+    function clearUploadPreview() {
+      revokeUploadedObjectURL();
+
+      uploadPreview.onload = null;
+      uploadPreview.onerror = null;
+
+      uploadPreview.removeAttribute("src");
+
+      uploadPreview.style.display =
+        "none";
+
+      uploadPlaceholder.style.display =
+        "block";
+
+      imageInput.value = "";
+
+      clearImageButton.disabled =
+        true;
+
+      predictionMain.textContent =
+        "아직 분류 결과가 없습니다.";
+
+      predictionRows.forEach(row => {
+        row.percent.textContent =
+          "0.0%";
+
+        row.bar.style.width =
+          "0%";
+
+        row.row.classList.remove(
+          "highest"
+        );
+      });
+    }
+
+    function revokeUploadedObjectURL() {
+      if (uploadedObjectURL) {
+        URL.revokeObjectURL(
+          uploadedObjectURL
+        );
+
+        uploadedObjectURL = null;
+      }
+    }
+
+    /*
+      스톱워치 업데이트
+    */
+    function updateStopwatchFromPrediction(
+      prediction,
+      result
+    ) {
+      const presentClassIndex =
+        findPresentClassIndex();
+
+      /*
+        "사람 있음" 클래스를 찾지 못한 경우
+        스톱워치를 안전하게 초기화합니다.
+      */
+      if (presentClassIndex === -1) {
+        resetStopwatch();
+        return;
+      }
+
+      /*
+        실제 "사람 있음" 클래스가
+        이번 프레임에서 가장 높은 확률인지 확인합니다.
+      */
+      const presentProbability =
+        Number(
+          prediction[presentClassIndex]
+            ?.probability
+        );
+
+      const highestIndex =
+        result.highestIndex;
+
+      if (
+        highestIndex ===
+        presentClassIndex &&
+        Number.isFinite(
+          presentProbability
+        )
+      ) {
+        if (stopwatchStartTime === null) {
+          stopwatchStartTime =
+            Date.now();
+        }
+
+        startStopwatchInterval();
+
+      } else {
+        /*
+          사람이 없으면 즉시 0:00으로 초기화합니다.
+        */
+        resetStopwatch();
+      }
+    }
+
+    function startStopwatchInterval() {
+      if (stopwatchInterval !== null) {
+        return;
+      }
+
+      updateStopwatchDisplay();
+
+      stopwatchInterval =
+        setInterval(
+          updateStopwatchDisplay,
+          250
+        );
+    }
+
+    function updateStopwatchDisplay() {
+      if (stopwatchStartTime === null) {
+        stopwatchElement.textContent =
+          "0:00";
+
+        return;
+      }
+
+      const elapsed =
+        Date.now() -
+        stopwatchStartTime;
+
+      const totalSeconds =
+        Math.floor(
+          elapsed / 1000
+        );
+
+      const minutes =
+        Math.floor(
+          totalSeconds / 60
+        );
+
+      const seconds =
+        totalSeconds % 60;
+
+      stopwatchElement.textContent =
+        `${minutes}:${String(seconds).padStart(2, "0")}`;
+
+      if (elapsed > STOPWATCH_LIMIT) {
+        stopwatchElement.classList.add(
+          "warning"
+        );
+
+        warningMessage.style.display =
+          "block";
+
+        showCat();
+
+      } else {
+        stopwatchElement.classList.remove(
+          "warning"
+        );
+
+        warningMessage.style.display =
+          "none";
+      }
+    }
+
+    /*
+      스톱워치 초기화
+    */
+    function resetStopwatch() {
+      stopwatchStartTime = null;
+
+      if (stopwatchInterval !== null) {
+        clearInterval(
+          stopwatchInterval
+        );
+
+        stopwatchInterval = null;
+      }
+
+      stopwatchElement.textContent =
+        "0:00";
+
+      stopwatchElement.classList.remove(
+        "warning"
+      );
+
+      warningMessage.style.display =
+        "none";
+
+      hideCat();
+    }
+
+    /*
+      경고 고양이
+    */
+    function showCat() {
+      if (
+        cat.style.display === "block"
+      ) {
+        return;
+      }
+
+      cat.style.display = "block";
+
+      catX =
+        Math.max(
+          20,
+          Math.random() *
+            Math.max(
+              20,
+              window.innerWidth - 170
+            )
+        );
+
+      catY =
+        Math.max(
+          20,
+          Math.random() *
+            Math.max(
+              20,
+              window.innerHeight - 150
+            )
+        );
+
+      catVX =
+        (Math.random() > 0.5 ? 1 : -1) *
+        (0.7 + Math.random() * 1.5);
+
+      catVY =
+        (Math.random() > 0.5 ? 1 : -1) *
+        (0.7 + Math.random() * 1.5);
+
+      cat.style.left =
+        `${catX}px`;
+
+      cat.style.top =
+        `${catY}px`;
+
+      moveCat();
+    }
+
+    function moveCat() {
+      if (
+        cat.style.display !== "block"
+      ) {
+        return;
+      }
+
+      catX += catVX;
+      catY += catVY;
+
+      const catWidth =
+        170;
+
+      const catHeight =
+        130;
+
+      if (
+        catX <= 0 ||
+        catX >=
+          window.innerWidth -
+          catWidth
+      ) {
+        catVX *= -1;
+      }
+
+      if (
+        catY <= 0 ||
+        catY >=
+          window.innerHeight -
+          catHeight
+      ) {
+        catVY *= -1;
+      }
+
+      cat.style.left =
+        `${catX}px`;
+
+      cat.style.top =
+        `${catY}px`;
+
+      catAnimationId =
+        requestAnimationFrame(
+          moveCat
+        );
+    }
+
+    function hideCat() {
+      cat.style.display =
+        "none";
+
+      if (catAnimationId !== null) {
+        cancelAnimationFrame(
+          catAnimationId
+        );
+
+        catAnimationId = null;
+      }
+    }
+
+    /*
+      페이지를 떠날 때 카메라와 Object URL 정리
+    */
+    window.addEventListener(
+      "beforeunload",
+      () => {
+        stopCamera();
+        revokeUploadedObjectURL();
+        hideCat();
+      }
+    );
+  </script>
+</body>
+</html>
+```
